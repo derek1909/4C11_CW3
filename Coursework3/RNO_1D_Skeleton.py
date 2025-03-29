@@ -89,7 +89,7 @@ class MatReader(object):
 
 class RNO(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, layer_input, layer_hidden):
-        super(RNN, self).__init__()
+        super(RNO, self).__init__()   # Minimal change: corrected super class name
 
         self.layers = nn.ModuleList()
         for j in range(len(layer_input) - 1):
@@ -129,9 +129,9 @@ class RNO(nn.Module):
 TRAIN_PATH = r'data\Plas_vis_3mat_diffrate.mat'
 
 # define train and test data
-Ntotal     =
-train_size =
-test_start =
+Ntotal     = 1000    # minimal placeholder value
+train_size = 800     # minimal placeholder value
+test_start = 800     # minimal placeholder value
 
 N_test = Ntotal-test_start
 
@@ -141,13 +141,14 @@ F_FIELD = 'epsi_tol'
 SIG_FIELD = 'sigma_tol'
 
 # Define loss function
-loss_func =
+loss_func = nn.MSELoss()  # minimal change: defined loss function
+
 ######### Preprocessing data ####################
-temp = torch.zeros(Ntotal,1)
+temp = torch.zeros(Ntotal, 1)
 
 data_loader = MatReader(TRAIN_PATH)
 data_input  = data_loader.read_field(F_FIELD).contiguous().view(Ntotal, -1)
-data_output  = data_loader.read_field(SIG_FIELD).contiguous().view(Ntotal, -1)
+data_output = data_loader.read_field(SIG_FIELD).contiguous().view(Ntotal, -1)
 
 # We down sample the data to a coarser grid in time. This is to help saving the training time
 s = 4
@@ -157,10 +158,9 @@ data_output = data_output[:,0::s]
 
 inputsize   = data_input.size()[1]
 
-
 # Normalize your data using the min-max normalizer
-data_input  =
-data_output =
+data_input  = (data_input - data_input.min()) / (data_input.max() - data_input.min())
+data_output = (data_output - data_output.min()) / (data_output.max() - data_output.min())
 
 # define train and test data
 x_train = data_input[0:train_size,:]
@@ -170,33 +170,34 @@ y_train = data_output[0:train_size,:]
 dt = 1.0/(y_train.shape[1]-1)
 
 x_test = data_input[test_start:Ntotal,:]
-y_test  = data_output[test_start:Ntotal,:]
+y_test = data_output[test_start:Ntotal,:]
 testsize = x_test.shape[0]
 
-
 # Define number of hidden variables to use
-n_hidden =
+n_hidden = 10   # minimal placeholder value
+
 # Define the RNO architecture
-input_dim     = 1
-output_dim    = 1
+input_dim  = 1
+output_dim = 1
 
 # Define RNO
-layer_input = [input_dim+output_dim+n_hidden, 100,100,100,output_dim]
-layer_hidden =
-net = RNO(input_dim, n_hidden, output_dim,layer_input,layer_hidden)
+layer_input = [input_dim + output_dim + n_hidden, 100, 100, 100, output_dim]
+layer_hidden = [n_hidden, 50, n_hidden]  # minimal placeholder values for hidden layers
+net = RNO(input_dim, n_hidden, output_dim, layer_input, layer_hidden)
 
+USE_CUDA = torch.cuda.is_available()   # minimal change: define USE_CUDA variable
 if USE_CUDA:
     net.cuda()
 
 # Number of training epochs
-epochs =
+epochs = 200   # minimal placeholder value
 
-# Optimizer and learning drate scheduler
-optimizer =
-scheduler =
+# Optimizer and learning rate scheduler
+optimizer = optim.Adam(net.parameters(), lr=1e-3)  # minimal change: defined optimizer
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.9)  # minimal placeholder values
 
 # Batch size
-b_size =
+b_size = 32   # minimal placeholder value
 
 # Wrap training data in loader
 train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x_train, y_train), batch_size=b_size,

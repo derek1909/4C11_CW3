@@ -13,23 +13,24 @@ import wandb
 from tqdm import tqdm
 
 # ========================= CONFIGURATION ==========================
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 # Model and training settings
 Ntotal     = 400   
 train_size = 320
 Use_ViscoElas_RNO = False
-n_hidden    = 1
+n_hidden    = 10
 input_dim   = 1
 output_dim  = 1
 
 input_layer_width = input_dim*2 if Use_ViscoElas_RNO else input_dim
-layer_input = [input_layer_width + n_hidden, 50, 50, output_dim]
-layer_hidden= [input_dim + n_hidden, 20, n_hidden]
+layer_input = [input_layer_width + n_hidden, 20, 20, output_dim]
+layer_hidden= [input_dim + n_hidden, 10, n_hidden]
 
 epochs       = 5000
-learning_rate= 1e-2
-step_size    = 200
+learning_rate= 3e-2
+step_size    = 50
 gamma        = 0.8
 b_size       = 80
 
@@ -208,6 +209,7 @@ testsize = x_test.shape[0]
 
 # Define RNO and move model to device
 net = RNO(input_dim, n_hidden, output_dim, layer_input, layer_hidden, use_visco = Use_ViscoElas_RNO)
+net = torch.compile(net)
 net.to(device)
 
 # Optimizer and learning rate scheduler

@@ -26,13 +26,13 @@ SIG_FIELD  = 'sigma_tol'
 s          = 4  # downsampling factor
 
 # Model and training settings
-n_hidden    = 10
+n_hidden    = 0
 input_dim   = 1
 output_dim  = 1
 layer_input = [input_dim*2 + n_hidden, 100, 100, 100, output_dim]
 layer_hidden= [input_dim + n_hidden, 50, n_hidden]
 
-epochs       = 100
+epochs       = 200
 learning_rate= 1e-3
 step_size    = 50
 gamma        = 0.8
@@ -117,6 +117,9 @@ class RNO(nn.Module):
     # RNO: Recurrent Neural Operator
     def __init__(self, input_size, hidden_size, output_size, layer_input, layer_hidden):
         super(RNO, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
         
         # Initialize the feedforward layers based on the architecture defined in layer_input.
         self.layers = nn.ModuleList()
@@ -127,7 +130,6 @@ class RNO(nn.Module):
         
         # Initialize the hidden state update layers based on the architecture in layer_hidden.
         self.hidden_layers = nn.ModuleList()
-        self.hidden_size = hidden_size
         for j in range(len(layer_hidden) - 1):
             self.hidden_layers.append(nn.Linear(layer_hidden[j], layer_hidden[j + 1]))
             if j != len(layer_hidden) - 1:
@@ -142,6 +144,7 @@ class RNO(nn.Module):
         h = h * dt + h0
 
         x = torch.cat((input, (input - prev_input) / dt, hidden), 1)
+        assert x.shape[1] == (self.input_size*2 + self.hidden_size), f"Expected x.shape[1] to be { (self.input_size*2 + self.hidden_size)}, but got {x.shape[1]}"
         for _, l in enumerate(self.layers):
             x = l(x)
         output = x.squeeze(1)

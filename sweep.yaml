@@ -6,4 +6,4 @@ parameters:
   n_hidden:
     values: [0, 1, 2, 3, 5, 7, 10]
 
-# wandb agent derek1909-university-of-cambridge/RNO_project/zuc38ylqå
+# wandb agent derek1909-university-of-cambridge/RNO_project/485755rv

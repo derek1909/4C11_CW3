@@ -22,18 +22,19 @@ wandb.init(project="RNO_project", config={
     "Ntotal": 400,
     "train_size": 320,
     "downsampling": 4,
-    "n_hidden": 6,
+    "n_hidden": 10,
     "input_dim": 1,
     "output_dim": 1,
     "layer_input": [20, 20],
     "layer_hidden": [10],
-    "epochs": 2000,
+    "epochs": 5000,
     "learning_rate": 3e-2,
     "step_size": 50,
     "gamma": 0.8,
     "b_size": 80
 })
 config = wandb.config
+
 
 TRAIN_PATH = 'Coursework3/viscodata_3mat.mat'
 F_FIELD    = 'epsi_tol'
@@ -216,7 +217,7 @@ x_test = x_test.to(device)
 y_test = y_test.to(device)
 
 # Train neural network
-# Train neural network
+print(f"number of internal variables: {config.n_hidden}")
 with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=True) as pbar_epoch:
     for ep in range(config.epochs):
         train_loss = 0.0

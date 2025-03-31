@@ -9,13 +9,16 @@ import h5py
 
 import matplotlib.pyplot as plt
 
+import wandb
+from tqdm import tqdm
+
 # ========================= CONFIGURATION ==========================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Data settings
 TRAIN_PATH = 'Coursework3/viscodata_3mat.mat'
 Ntotal     = 400   
-train_size = 300   
+train_size = 300
 test_size  = Ntotal - train_size
 
 F_FIELD    = 'epsi_tol'
@@ -29,12 +32,32 @@ output_dim  = 1
 layer_input = [input_dim*2 + n_hidden, 100, 100, 100, output_dim]
 layer_hidden= [input_dim + n_hidden, 50, n_hidden]
 
-epochs       = 200
+epochs       = 100
 learning_rate= 1e-3
 step_size    = 50
-gamma        = 0.9
-b_size       = 32
+gamma        = 0.8
+b_size       = 100
+
+# Initialize wandb
+wandb.init(project="RNO_project", config={
+    "Ntotal": Ntotal,
+    "train_size": train_size,
+    "test_size": test_size,
+    "s": s,
+    "n_hidden": n_hidden,
+    "input_dim": input_dim,
+    "output_dim": output_dim,
+    "layer_input": layer_input,
+    "layer_hidden": layer_hidden,
+    "epochs": epochs,
+    "learning_rate": learning_rate,
+    "step_size": step_size,
+    "gamma": gamma,
+    "b_size": b_size
+})
+
 # ==================================================================
+
 
 class DenseNet(nn.Module):
     def __init__(self, layers, nonlinearity):
@@ -118,11 +141,11 @@ class RNO(nn.Module):
             h = m(h)
         h = h * dt + h0
 
-
         x = torch.cat((input, (input - prev_input) / dt, hidden), 1)
         for _, l in enumerate(self.layers):
             x = l(x)
         output = x.squeeze(1)
+
         hidden = h
         return output, hidden
     
@@ -180,31 +203,49 @@ x_test = x_test.to(device)
 y_test = y_test.to(device)
 
 # Train neural network
-for ep in range(epochs):
-    scheduler.step()
-    train_loss = 0.0
-    test_loss  = 0.0
-    for x, y in train_loader:
-        current_batch_size = x.size(0)
-        x, y = x.to(device), y.to(device)
-        hidden = net.initHidden(current_batch_size)
-        optimizer.zero_grad()
-        y_approx = torch.zeros(current_batch_size, T, device=device)
-        y_true = y
-        y_approx[:, 0] = y_true[:, 0]
-        for i in range(1, T):
-            y_approx[:, i], hidden = net(x[:, i].unsqueeze(1), x[:, i-1].unsqueeze(1), hidden, dt)
-        loss = loss_func(y_approx, y_true)
-        loss.backward()
-        train_loss += loss.item()
-        optimizer.step()
-    with torch.no_grad():
-        hidden_test = net.initHidden(testsize)
-        y_test_approx[:, 0] = y_test[:, 0]
-        for j in range(1, T):
-            y_test_approx[:, j], hidden_test = net(x_test[:, j].unsqueeze(1), x_test[:, j-1].unsqueeze(1), hidden_test, dt)
-        t_loss = loss_func(y_test_approx, y_test)
-        test_loss = t_loss.item()
-    train_err[ep] = train_loss / len(train_loader)
-    test_err[ep]  = test_loss
-    print(ep, train_err[ep], test_err[ep])
+# Train neural network
+with tqdm(total=epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=True) as pbar_epoch:
+    for ep in range(epochs):
+        train_loss = 0.0
+        test_loss  = 0.0
+
+        for x, y in train_loader:
+            current_batch_size = x.size(0)
+            x, y = x.to(device), y.to(device)
+            hidden = net.initHidden(current_batch_size)
+            optimizer.zero_grad()
+            y_approx = torch.zeros(current_batch_size, T, device=device)
+            y_true = y
+            y_approx[:, 0] = y_true[:, 0]
+            for i in range(1, T):
+                y_approx[:, i], hidden = net(x[:, i].unsqueeze(1), x[:, i-1].unsqueeze(1), hidden, dt)
+            loss = loss_func(y_approx, y_true)
+            loss.backward()
+            train_loss += loss.item()
+            optimizer.step()
+
+        with torch.no_grad():
+            hidden_test = net.initHidden(testsize)
+            y_test_approx[:, 0] = y_test[:, 0]
+            for j in range(1, T):
+                y_test_approx[:, j], hidden_test = net(x_test[:, j].unsqueeze(1), x_test[:, j-1].unsqueeze(1), hidden_test, dt)
+            t_loss = loss_func(y_test_approx, y_test)
+            test_loss = t_loss.item()
+
+        scheduler.step()
+        avg_train_loss = train_loss / len(train_loader)
+        train_err[ep] = avg_train_loss
+        test_err[ep]  = test_loss
+        wandb.log({"epoch": ep, "train_loss": avg_train_loss, "test_loss": test_loss})
+        pbar_epoch.update(1)
+        pbar_epoch.set_postfix({"Train Loss": f"{avg_train_loss:.3e}", "Test Loss": f"{test_loss:.3e}"})
+
+# Plot training history and save to local machine (do not show the plot)
+plt.figure()
+plt.plot(np.arange(epochs), train_err, label="Train Loss")
+plt.plot(np.arange(epochs), test_err, label="Test Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.legend()
+plt.savefig("training_history.png")
+plt.close()

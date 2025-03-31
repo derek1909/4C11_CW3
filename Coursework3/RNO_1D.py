@@ -17,49 +17,32 @@ from tqdm import tqdm
 device = torch.device("cpu")
 
 # Model and training settings
-Ntotal     = 400   
-train_size = 320
-Use_ViscoElas_RNO = False
-n_hidden    = 10
-input_dim   = 1
-output_dim  = 1
+wandb.init(project="RNO_project", config={
+    "Use_ViscoElas_RNO": False,
+    "Ntotal": 400,
+    "train_size": 320,
+    "downsampling": 4,
+    "n_hidden": 10,
+    "input_dim": 1,
+    "output_dim": 1,
+    "layer_input": [20, 20],
+    "layer_hidden": [10],
+    "epochs": 5000,
+    "learning_rate": 3e-2,
+    "step_size": 50,
+    "gamma": 0.8,
+    "b_size": 80
+})
+config = wandb.config
 
-input_layer_width = input_dim*2 if Use_ViscoElas_RNO else input_dim
-layer_input = [input_layer_width + n_hidden, 20, 20, output_dim]
-layer_hidden= [input_dim + n_hidden, 10, n_hidden]
 
-epochs       = 5000
-learning_rate= 3e-2
-step_size    = 50
-gamma        = 0.8
-b_size       = 80
-
-# Processing config
 TRAIN_PATH = 'Coursework3/viscodata_3mat.mat'
-test_size  = Ntotal - train_size
-
 F_FIELD    = 'epsi_tol'
 SIG_FIELD  = 'sigma_tol'
-s          = 4  # downsampling factor
-model_arch = "RNO_ViscoElas" if Use_ViscoElas_RNO else "RNO"
 
-wandb.init(project="RNO_project", config={
-    "model": model_arch,
-    "Ntotal": Ntotal,
-    "train_size": train_size,
-    "test_size": test_size,
-    "s": s,
-    "n_hidden": n_hidden,
-    "input_dim": input_dim,
-    "output_dim": output_dim,
-    "layer_input": layer_input,
-    "layer_hidden": layer_hidden,
-    "epochs": epochs,
-    "learning_rate": learning_rate,
-    "step_size": step_size,
-    "gamma": gamma,
-    "b_size": b_size
-})
+input_layer_width = config.input_dim*2 if config.Use_ViscoElas_RNO else config.input_dim
+layer_input = [input_layer_width + config.n_hidden] + config.layer_input + [config.output_dim]
+layer_hidden= [config.input_dim + config.n_hidden] + config.layer_hidden + [config.n_hidden]
 
 # ==================================================================
 
@@ -187,12 +170,12 @@ loss_func = nn.MSELoss()
 
 # Read data from the .mat file
 data_loader = MatReader(TRAIN_PATH)
-data_input  = data_loader.read_field(F_FIELD).contiguous().view(Ntotal, -1)  # (400, 1001)
-data_output = data_loader.read_field(SIG_FIELD).contiguous().view(Ntotal, -1)
+data_input  = data_loader.read_field(F_FIELD).contiguous().view(config.Ntotal, -1)  # (400, 1001)
+data_output = data_loader.read_field(SIG_FIELD).contiguous().view(config.Ntotal, -1)
 
 # Downsample data
-data_input  = data_input[:, 0::s]  # (400, 251)
-data_output = data_output[:, 0::s]
+data_input  = data_input[:, 0::config.downsampling]  # (400, 251)
+data_output = data_output[:, 0::config.downsampling]
 inputsize   = data_input.size()[1]
 
 # Normalize data using min-max normalization
@@ -200,33 +183,33 @@ data_input  = (data_input - data_input.min()) / (data_input.max() - data_input.m
 data_output = (data_output - data_output.min()) / (data_output.max() - data_output.min())
 
 # Define train and test data
-x_train = data_input[0:train_size, :]
-y_train = data_output[0:train_size, :]
+x_train = data_input[0:config.train_size, :]
+y_train = data_output[0:config.train_size, :]
 dt = 1.0 / (y_train.shape[1] - 1)
-x_test = data_input[train_size:Ntotal, :]
-y_test = data_output[train_size:Ntotal, :]
+x_test = data_input[config.train_size:config.Ntotal, :]
+y_test = data_output[config.train_size:config.Ntotal, :]
 testsize = x_test.shape[0]
 
 # Define RNO and move model to device
-net = RNO(input_dim, n_hidden, output_dim, layer_input, layer_hidden, use_visco = Use_ViscoElas_RNO)
+net = RNO(config.input_dim, config.n_hidden, config.output_dim, layer_input, layer_hidden, use_visco = config.Use_ViscoElas_RNO)
 net = torch.compile(net)
 net.to(device)
 
 # Optimizer and learning rate scheduler
-optimizer = optim.Adam(net.parameters(), lr=learning_rate)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+optimizer = optim.Adam(net.parameters(), lr=config.learning_rate)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=config.step_size, gamma=config.gamma)
 
 # Wrap training data in loader
 train_loader = torch.utils.data.DataLoader(
     torch.utils.data.TensorDataset(x_train, y_train),
-    batch_size=b_size,
+    batch_size=config.b_size,
     shuffle=True
 )
 
 # Prepare for training
 T = inputsize
-train_err = np.zeros((epochs,))
-test_err = np.zeros((epochs,))
+train_err = np.zeros((config.epochs,))
+test_err = np.zeros((config.epochs,))
 y_test_approx = torch.zeros(testsize, T, device=device)
 
 # Move test data to device
@@ -234,9 +217,9 @@ x_test = x_test.to(device)
 y_test = y_test.to(device)
 
 # Train neural network
-# Train neural network
-with tqdm(total=epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=True) as pbar_epoch:
-    for ep in range(epochs):
+print(f"number of internal variables: {config.n_hidden}")
+with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=True) as pbar_epoch:
+    for ep in range(config.epochs):
         train_loss = 0.0
         test_loss  = 0.0
 
@@ -291,8 +274,8 @@ with tqdm(total=epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=
 
 # Plot training history and save to local machine (do not show the plot)
 plt.figure()
-plt.plot(np.arange(epochs), train_err, label="Train Loss")
-plt.plot(np.arange(epochs), test_err, label="Test Loss")
+plt.plot(np.arange(config.epochs), train_err, label="Train Loss")
+plt.plot(np.arange(config.epochs), test_err, label="Test Loss")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.yscale("log")

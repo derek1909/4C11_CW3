@@ -19,19 +19,19 @@ device = torch.device("cpu")
 
 # Model and training settings
 wandb.init(project="RNO_project", config={
-    "Use_ViscoElas_RNO": False,
+    "Use_ViscoElas_RNO": True,
     "Ntotal": 400,
     "train_size": 320,
     "downsampling": 4,
-    "n_hidden": 10,
+    "n_hidden": 0,
     "input_dim": 1,
     "output_dim": 1,
     "layer_input": [20, 20],
     "layer_hidden": [10],
-    "epochs": 5000,
+    "epochs": 500,
     "learning_rate": 3e-2,
     "step_size": 50,
-    "gamma": 0.8,
+    "gamma": 0.7,
     "b_size": 80,
     "early_stop_patience": 100,
     "min_delta": 1e-5

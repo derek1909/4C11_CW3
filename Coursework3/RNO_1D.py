@@ -47,6 +47,13 @@ input_layer_width = config.input_dim*2 if config.Use_ViscoElas_RNO else config.i
 layer_input = [input_layer_width + config.n_hidden] + config.layer_input + [config.output_dim]
 layer_hidden= [config.input_dim + config.n_hidden] + config.layer_hidden + [config.n_hidden]
 
+if config.Use_ViscoElas_RNO:
+    model_name = f"RNO_Visco_{config.n_hidden}"
+else:
+    model_name = f"RNO_Standard_{config.n_hidden}"
+result_dir = f"/scratches/kolmogorov_2/jd976/working/4C11_CW3/Coursework3/results/{model_name}"
+os.makedirs(result_dir, exist_ok=True)
+
 # ==================================================================
 
 

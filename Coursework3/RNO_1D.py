@@ -19,19 +19,19 @@ device = torch.device("cpu")
 
 # Model and training settings
 wandb.init(project="RNO_project", config={
-    "Use_ViscoElas_RNO": True,
+    "Use_ViscoElas_RNO": False,
     "Ntotal": 400,
     "train_size": 320,
     "downsampling": 4,
-    "n_hidden": 0,
+    "n_hidden": 10,
     "input_dim": 1,
     "output_dim": 1,
     "layer_input": [20, 20],
     "layer_hidden": [10],
-    "epochs": 500,
+    "epochs": 5000,
     "learning_rate": 3e-2,
     "step_size": 50,
-    "gamma": 0.7,
+    "gamma": 0.8,
     "b_size": 80,
     "early_stop_patience": 100,
     "min_delta": 1e-5
@@ -218,8 +218,8 @@ train_loader = torch.utils.data.DataLoader(
 
 # Prepare for training
 T = inputsize
-train_err = np.zeros((config.epochs,))
-test_err = np.zeros((config.epochs,))
+train_err = []
+test_err = []
 y_test_approx = torch.zeros(testsize, T, device=device)
 
 # Move test data to device
@@ -229,6 +229,7 @@ y_test = y_test.to(device)
 # Early stopping parameters
 best_loss = float('inf')
 patience_counter = 0
+early_stop_ep = config.epochs
 
 # Train neural network
 print(f"number of internal variables: {config.n_hidden}")
@@ -271,8 +272,8 @@ with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic
 
         scheduler.step()
         avg_train_loss = train_loss / len(train_loader)
-        train_err[ep] = avg_train_loss
-        test_err[ep]  = test_loss
+        train_err.append(avg_train_loss)
+        test_err.append(test_loss)
         wandb.log({
             "epoch": ep, 
             "train_loss": avg_train_loss, 
@@ -296,6 +297,7 @@ with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic
         if patience_counter >= config.early_stop_patience:
             print(f"Early stopping triggered at epoch {ep}.")
             wandb.log({"early_stop_epoch": ep})
+            early_stop_ep = ep
             break
 
 torch.save(net.state_dict(), os.path.join(result_dir, f"{model_name}.pt"))
@@ -303,8 +305,8 @@ np.savez(os.path.join(result_dir, "training_history.npz"), train_err=train_err, 
 
 # Plot training history and save to local machine (do not show the plot)
 plt.figure()
-plt.plot(np.arange(config.epochs), train_err, label="Train Loss")
-plt.plot(np.arange(config.epochs), test_err, label="Test Loss")
+plt.plot(np.arange(early_stop_ep+1), train_err, label="Train Loss")
+plt.plot(np.arange(early_stop_ep+1), test_err, label="Test Loss")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.yscale("log")
@@ -312,4 +314,31 @@ plt.legend()
 plt.savefig(os.path.join(result_dir, "training_history.png"))
 plt.close()
 
-wandb.log({"training_history": wandb.Image("training_history.png")})
+# wandb.log({"training_history": wandb.Image("training_history.png")})
+
+
+# -----------------------------------------------------------------------------
+# Plot a sample of ground truth and predicted stress vs strain for a test sample
+# -----------------------------------------------------------------------------
+
+# Choose a test sample index (you can modify this index as needed)
+sample_index = 10
+
+# Convert the selected test sample data from GPU tensors to CPU numpy arrays
+sample_strain = x_test[sample_index].cpu().numpy()
+sample_stress_true = y_test[sample_index].cpu().numpy()
+sample_stress_pred = y_test_approx[sample_index].cpu().numpy()
+
+# Create the plot comparing ground truth and predicted stress vs strain
+plt.figure()
+plt.plot(sample_strain, sample_stress_true, '-', label='Ground Truth')
+plt.plot(sample_strain, sample_stress_pred, '--', label='Predicted')
+plt.xlabel('Strain')
+plt.ylabel('Stress')
+# plt.title(f'Stress vs Strain for Test Sample {sample_index}')
+plt.legend()
+plt.grid(True)
+
+# Save the plot to the result folder
+plt.savefig(os.path.join(result_dir, 'comparison_sample.png'))
+plt.close()

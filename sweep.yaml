@@ -1,9 +1,10 @@
 program: "Coursework3/RNO_1D.py"
 entity: "derek1909-university-of-cambridge"
 project: "RNO_project"
+name: "Standard_RNO"
 method: grid
 parameters:
   n_hidden:
     values: [0, 1, 2, 3, 5, 7, 10]
 
-# wandb agent derek1909-university-of-cambridge/RNO_project/485755rv
+# wandb agent derek1909-university-of-cambridge/RNO_project/jvbqmiye

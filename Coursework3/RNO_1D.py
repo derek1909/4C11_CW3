@@ -6,6 +6,7 @@ import torch.optim as optim
 import numpy as np
 import scipy.io
 import h5py
+import os
 
 import matplotlib.pyplot as plt
 
@@ -31,7 +32,9 @@ wandb.init(project="RNO_project", config={
     "learning_rate": 3e-2,
     "step_size": 50,
     "gamma": 0.8,
-    "b_size": 80
+    "b_size": 80,
+    "early_stop_patience": 100,
+    "min_delta": 1e-5
 })
 config = wandb.config
 
@@ -216,6 +219,10 @@ y_test_approx = torch.zeros(testsize, T, device=device)
 x_test = x_test.to(device)
 y_test = y_test.to(device)
 
+# Early stopping parameters
+best_loss = float('inf')
+patience_counter = 0
+
 # Train neural network
 print(f"number of internal variables: {config.n_hidden}")
 with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic_ncols=True) as pbar_epoch:
@@ -272,6 +279,21 @@ with tqdm(total=config.epochs, initial=0, desc="Training", unit="epoch", dynamic
             "Test Err %": f"{test_error_percentage:.2f}%"
         })
 
+        # Early stopping check
+        if test_loss < best_loss - config.min_delta:
+            best_loss = test_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        if patience_counter >= config.early_stop_patience:
+            print(f"Early stopping triggered at epoch {ep}.")
+            wandb.log({"early_stop_epoch": ep})
+            break
+
+torch.save(net.state_dict(), os.path.join(result_dir, f"{model_name}.pt"))
+np.savez(os.path.join(result_dir, "training_history.npz"), train_err=train_err, test_err=test_err)
+
 # Plot training history and save to local machine (do not show the plot)
 plt.figure()
 plt.plot(np.arange(config.epochs), train_err, label="Train Loss")
@@ -280,7 +302,7 @@ plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.yscale("log")
 plt.legend()
-plt.savefig("training_history.png")
+plt.savefig(os.path.join(result_dir, "training_history.png"))
 plt.close()
 
 wandb.log({"training_history": wandb.Image("training_history.png")})
